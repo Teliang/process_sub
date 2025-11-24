@@ -13,28 +13,26 @@ fn main() {
 
     let file_name = args.last().unwrap();
 
-    let pos_opt = file_name.rfind('.');
+    let extension_pos_opt = file_name.rfind('.');
 
-    if pos_opt.is_none() {
+    if extension_pos_opt.is_none() {
         eprintln!("unknown file extension");
         process::exit(1);
     }
 
-    let pos = pos_opt.unwrap();
+    let pos = extension_pos_opt.unwrap();
 
-    let mut iter = file_name.chars();
-    iter.by_ref().nth(pos); // eat up start values
-    let extension = iter.as_str(); // get back a slice of the rest of the iterator
+    let extension = &file_name[pos..]; // get back a slice of the rest of the iterator
 
-    match extension {
-        "ass" => {
+    match extension.into() {
+        ".ass" => {
             handle_ass(file_name);
         }
-        "srt" => {
+        ".srt" => {
             handle_srt(file_name);
         }
         _ => {
-            println!("err")
+            println!("unsupport file extension: {}",extension)
         }
     }
 }
@@ -43,6 +41,7 @@ fn handle_srt(file_name: &String) {
     let file = File::open(file_name).unwrap();
     let reader = BufReader::new(file);
 
+    // remove 3th line for each section
     let mut count = 0;
     for line_rs in reader.lines() {
         let line = line_rs.unwrap();
@@ -67,11 +66,13 @@ fn handle_ass(file_name: &String) {
         let line = line_rs.unwrap();
 
         if event_section && line.starts_with("Dialogue") {
-            let text_pos = line.rfind(',').unwrap_or(0);
-            let jp_pos = line.find(r"\N").unwrap_or(0);
-            if text_pos < jp_pos {
+            let remove_mark = r"\N";
+            // everything after the 9th comma is treated as the subtitle text
+            let text_pos = find_ninth_comma(&line).unwrap_or(0);
+            let remove_pos = line.find(remove_mark).unwrap_or(0);
+            if text_pos < remove_pos {
                 let line_profix = &line[..text_pos + 1];
-                let line_end = &line[jp_pos + 2..];
+                let line_end = &line[remove_pos + remove_mark.len()..];
                 print!("{}", line_profix);
                 println!("{}", line_end);
             } else {
@@ -85,4 +86,17 @@ fn handle_ass(file_name: &String) {
             event_section = true;
         }
     }
+}
+
+fn find_ninth_comma(s: &str) -> Option<usize> {
+    let mut count = 0;
+    for (i, c) in s.char_indices() {
+        if c == ',' {
+            count += 1;
+            if count == 9 {
+                return Some(i);
+            }
+        }
+    }
+    None
 }
